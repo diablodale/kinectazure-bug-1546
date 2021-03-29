@@ -15,15 +15,17 @@ using namespace std::string_view_literals;
 
 int main(int argc, char *argv[]) {
     if (argc == 1) {
-        std::cout << "Usage:    " << argv[0] << " gpu_index [gpu_type [wait_ms]]\n\n"
+        std::cout << "Usage:    " << argv[0] << " gpu_index [gpu_type [wait_ms [lite]]]\n\n"
                   << "          gpu_index is integer\n"
                   << "          gpu_type is \"directml\" or \"cuda\" with default = directml\n"
-                  << "          wait_ms is time in integer millisec between camera captures with default = 0\n\n"
+                  << "          wait_ms is time in integer millisec between camera captures with default = 0\n"
+                  << "          \"lite\" uses lite onnx model instead of default non-lite onnx model\n\n"
                   << "Examples:\n"
-                  << "          bug1546.exe 0                directml gpu 0, no wait\n"
-                  << "          bug1546.exe 1                directml gpu 1, no wait\n"
-                  << "          bug1546.exe 0 cuda           cuda gpu 0, no wait\n"
-                  << "          bug1546.exe 0 directml 33    directml gpu 0, 33 millisecond wait (i.e. 30 fps)\n\n"
+                  << "          bug1546.exe 0                     directml gpu 0, no wait\n"
+                  << "          bug1546.exe 1                     directml gpu 1, no wait\n"
+                  << "          bug1546.exe 0 cuda                cuda gpu 0, no wait\n"
+                  << "          bug1546.exe 0 directml 33         directml gpu 0, 33 millisecond wait (i.e. 30 fps)\n"
+                  << "          bug1546.exe 0 directml 33 lite    directml gpu 0, 33 millisecond wait, lite model\n\n"
                   << "          Kinect is K4A_FRAMES_PER_SECOND_30, K4A_DEPTH_MODE_NFOV_UNBINNED, K4A_COLOR_RESOLUTION_OFF" << std::endl;
         return 0;
     }
@@ -40,7 +42,7 @@ int main(int argc, char *argv[]) {
             K4ABT_SENSOR_ORIENTATION_DEFAULT,
             (argc > 2) && ("cuda"sv == argv[2]) ? K4ABT_TRACKER_PROCESSING_MODE_GPU_CUDA : K4ABT_TRACKER_PROCESSING_MODE_GPU_DIRECTML,
             argc > 1 ? std::atoi(argv[1]) : 0,
-            "dnn_model_2_0_op11.onnx"
+            (argc > 4) && ("lite"sv == argv[4]) ? "dnn_model_2_0_lite_op11.onnx" : "dnn_model_2_0_op11.onnx"
         });
 
         std::map<k4a_capture_t, decltype(steady_clock::now())> work_start_times;
