@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <chrono>
 #include <thread>
+#include <optional>
+#include <map>
 #include <string_view>
 #include <k4a/k4a.hpp>
 #include <k4abt.hpp>
@@ -41,6 +43,8 @@ int main(int argc, char *argv[]) {
             "dnn_model_2_0_op11.onnx"
         });
 
+        std::map<k4a_capture_t, decltype(steady_clock::now())> work_start_times;
+        std::optional<float> avg_end_to_end;
         const auto ping_wait = std::chrono::milliseconds(argc > 3 ? std::atoi(argv[3]) : 0);
         int bt_frame_count = 0;
         auto startTime = steady_clock::now();
@@ -52,7 +56,8 @@ int main(int argc, char *argv[]) {
             const duration<float> sample_time = now - startTime;
             if (sample_time >= 2s) {
                 const float bt_fps = bt_frame_count / sample_time.count();
-                std::cout << "bodytrack fps " << bt_fps << std::endl;
+                std::cout << "bodytrack fps " << bt_fps << "     avg end-to-end " << avg_end_to_end.value_or(0.0f) <<  "ms" << std::endl;
+                avg_end_to_end = std::nullopt;
                 bt_frame_count = 0;
                 startTime = steady_clock::now();
             }
@@ -61,12 +66,17 @@ int main(int argc, char *argv[]) {
             static const auto sensor_wait = std::chrono::milliseconds(0);
             static const auto bt_wait = std::chrono::milliseconds(5000);
             k4a::capture sensor_capture;
+            const auto work_start = steady_clock::now();
             if (device.get_capture(&sensor_capture, sensor_wait)) {
                 if (!tracker.enqueue_capture(sensor_capture, bt_wait)) {
                     std::cout << "bt enqueue timeout" << std::endl;
                     continue;
                 }
 
+                // retain end-to-end body track work start time
+                work_start_times[sensor_capture.handle()] = work_start;
+
+                // get body track result
                 k4abt::frame body_frame = tracker.pop_result(bt_wait);
                 if (!body_frame) {
                     // likely bad state, since no bt result in 5 seconds, and
@@ -74,8 +84,9 @@ int main(int argc, char *argv[]) {
                     std::cout << "bt pop timeout" << std::endl;
                     continue;
                 }
-
                 ++bt_frame_count;
+
+                // simulate work on the body tracking data
                 uint32_t num_bodies = body_frame.get_num_bodies();
                 float dummy = static_cast<float>(num_bodies);
                 for (uint32_t i = 0; i < num_bodies; ++i) {
@@ -83,6 +94,18 @@ int main(int argc, char *argv[]) {
                     dummy *= body.id * body.skeleton.joints[1].position.xyz.x;
                 }
                 (void)dummy;
+
+                // calculate end-to-end work time
+                const auto work_end = steady_clock::now();
+                if (const auto start_item = work_start_times.find(body_frame.get_capture().handle());
+                    start_item != work_start_times.end()) {
+                    const duration<float, std::milli> item_work_time = work_end - start_item->second;
+                    avg_end_to_end = (0.9f * avg_end_to_end.value_or(item_work_time.count())) + (0.1f * item_work_time.count());
+                    work_start_times.erase(start_item);
+                }
+                else {
+                    std::cerr << "got capture handle out of bt that was never put into body tracking" << std::endl;
+                }
             }
             else {
                 // camera frame timeout

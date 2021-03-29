@@ -9,7 +9,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/bug1546.exe",
-            "args": ["0"],
+            "args": ["0", "directml"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [],
